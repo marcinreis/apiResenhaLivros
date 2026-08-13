@@ -1,4 +1,3 @@
-# apiResenhaLivros
 # API de Resenhas de Livros
 
 API REST para busca de livros (via API externa) e cadastro de resenhas próprias.
