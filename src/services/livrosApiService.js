@@ -1,37 +1,60 @@
 const axios = require('axios');
 const livroModel = require('../models/livroModel');
+const AppError = require('../utils/appError');
+const validarId = require('../utils/validarId');
 
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
 
-// Busca livros na API externa por título ou autor
+// Busca livros na API externa por título ou autor (não salva nada localmente)
 async function buscarLivrosExternos(termo) {
-  const response = await axios.get(GOOGLE_BOOKS_URL, {
-    params: { q: termo, maxResults: 10 },
-  });
+  let response;
+  try {
+    response = await axios.get(GOOGLE_BOOKS_URL, {
+      params: { q: termo, maxResults: 10 },
+    });
+  } catch (erro) {
+    throw new AppError('Falha ao consultar a API externa de livros (Google Books)', 502);
+  }
 
   return (response.data.items || []).map((item) => {
-    const info = item.volumeInfo;
+    const info = item.volumeInfo || {};
+    const identificadores = info.industryIdentifiers || [];
+    const isbn13 = identificadores.find((i) => i.type === 'ISBN_13')?.identifier;
+    const isbn10 = identificadores.find((i) => i.type === 'ISBN_10')?.identifier;
+
     return {
       googleId: item.id,
-      titulo: info.title,
+      titulo: info.title || 'Título desconhecido',
       autores: info.authors ? info.authors.join(', ') : 'Autor desconhecido',
-      isbn: info.industryIdentifiers?.find((i) => i.type === 'ISBN_13')?.identifier || null,
+      isbn: isbn13 || isbn10 || null,
       capaUrl: info.imageLinks?.thumbnail || null,
       sinopse: info.description || null,
     };
   });
 }
 
-// Retorna o livro local se já existir (por ISBN), ou cria a partir dos dados externos
+// Retorna o livro local se já existir (por ISBN ou googleId), ou cria a partir dos dados externos
 async function salvarOuObterLivro(livroExterno) {
-  if (!livroExterno.isbn) {
-    const erro = new Error('Livro sem ISBN não pode ser salvo');
-    erro.isOperational = true;
-    throw erro;
+  const { isbn, googleId, titulo } = livroExterno || {};
+
+  if (!titulo) {
+    throw new AppError('Campo "titulo" é obrigatório', 400);
   }
 
-  const existente = await livroModel.buscarPorIsbn(livroExterno.isbn);
-  if (existente) return existente;
+  if (!isbn && !googleId) {
+    throw new AppError('Informe ao menos "isbn" ou "googleId" para salvar o livro', 400);
+  }
+
+  let existente = null;
+  if (isbn) {
+    existente = await livroModel.buscarPorIsbn(isbn);
+  }
+  if (!existente && googleId) {
+    existente = await livroModel.buscarPorGoogleId(googleId);
+  }
+  if (existente) {
+    return existente;
+  }
 
   const novoId = await livroModel.criar(livroExterno);
   return { id: novoId, ...livroExterno };
@@ -39,11 +62,10 @@ async function salvarOuObterLivro(livroExterno) {
 
 // Busca um livro salvo localmente pelo id
 async function obterLivroPorId(id) {
-  const livro = await livroModel.buscarPorId(id);
+  const idValido = validarId(id, 'id');
+  const livro = await livroModel.buscarPorId(idValido);
   if (!livro) {
-    const erro = new Error('Livro não encontrado');
-    erro.isOperational = true;
-    throw erro;
+    throw new AppError('Livro não encontrado', 404);
   }
   return livro;
 }

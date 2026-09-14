@@ -2,9 +2,12 @@
   "name": "apiresenhalivros",
   "version": "1.0.0",
   "description": "API REST para busca de livros (via API externa) e cadastro de resenhas próprias.",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "jest --runInBand",
+    "test:e2e": "jest --config jest.e2e.config.js --runInBand"
   },
   "repository": {
     "type": "git",
@@ -23,5 +26,10 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "mysql2": "^3.24.4"
+  },
+  "devDependencies": {
+    "jest": "^30.5.1",
+    "mysql-memory-server": "^1.16.0",
+    "supertest": "^7.2.2"
   }
 }

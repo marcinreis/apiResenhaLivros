@@ -9,6 +9,29 @@ async function criar({ livroId, usuarioId, nota, texto }) {
   return result.insertId;
 }
 
+async function buscarTodas() {
+  const [rows] = await db.query(
+    `SELECT r.*, u.nome AS usuario_nome, l.titulo AS livro_titulo
+     FROM resenhas r
+     JOIN usuarios u ON u.id = r.usuario_id
+     JOIN livros l ON l.id = r.livro_id
+     ORDER BY r.criado_em DESC`
+  );
+  return rows;
+}
+
+async function buscarPorId(id) {
+  const [rows] = await db.query(
+    `SELECT r.*, u.nome AS usuario_nome, l.titulo AS livro_titulo
+     FROM resenhas r
+     JOIN usuarios u ON u.id = r.usuario_id
+     JOIN livros l ON l.id = r.livro_id
+     WHERE r.id = ?`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
 async function buscarPorLivro(livroId) {
   const [rows] = await db.query(
     `SELECT r.*, u.nome AS usuario_nome
@@ -43,6 +66,8 @@ async function deletar(id) {
 
 module.exports = {
   criar,
+  buscarTodas,
+  buscarPorId,
   buscarPorLivro,
   buscarPorUsuario,
   atualizar,

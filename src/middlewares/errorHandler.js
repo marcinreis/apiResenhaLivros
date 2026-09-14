@@ -1,9 +1,9 @@
 function errorHandler(err, req, res, next) {
   console.error(err);
 
-  // Erros conhecidos lançados pelos services (ex: "Nota deve estar entre 0 e 5")
-  if (err.message && err.isOperational) {
-    return res.status(400).json({ erro: err.message });
+  // Erros conhecidos lançados pelos services (AppError), cada um com seu status HTTP
+  if (err.isOperational) {
+    return res.status(err.status || 400).json({ erro: err.message });
   }
 
   // Erro de chave duplicada no MySQL (ex: ISBN já cadastrado)
