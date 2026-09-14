@@ -1,4 +1,4 @@
-const livrosApiService = require('./livrosApiService');
+const livrosApiService = require('../services/livrosApiService');
 
 // GET /livros/buscar?termo=...
 // Busca livros na API externa (não salva ainda)

@@ -1,4 +1,4 @@
-const db = require('./db');
+const db = require('../config/database');
 
 // Cria uma nova resenha vinculada a um livro e a um usuário
 async function criarResenha({ livroId, usuarioId, nota, texto }) {

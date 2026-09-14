@@ -1,4 +1,4 @@
-const resenhasService = require('./resenhasService');
+const resenhasService = require('../services/resenhasService');
 
 // POST /resenhas
 async function criar(req, res) {

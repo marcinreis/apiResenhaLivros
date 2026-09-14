@@ -1,5 +1,5 @@
 const axios = require('axios');
-const db = require('./db'); // pool de conexão MySQL (mysql2/promise)
+const db = require('../config/database');
 
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
 

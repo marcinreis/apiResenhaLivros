@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 
-const livrosController = require('./livrosController');
-const resenhasController = require('./resenhasController');
-const validarResenha = require('./validarResenha');
+const livrosController = require('../controllers/livrosController');
+const resenhasController = require('../controllers/resenhasController');
+const validarResenha = require('../middlewares/validarResenha');
 
 // Rotas de livros
 router.get('/livros/buscar', livrosController.buscar);
