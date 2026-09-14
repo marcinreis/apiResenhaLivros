@@ -1,58 +1,50 @@
-const db = require('../config/database');
+const resenhaModel = require('../models/resenhaModel');
+const livroModel = require('../models/livroModel');
 
-// Cria uma nova resenha vinculada a um livro e a um usuário
+// Cria uma nova resenha, garantindo que o livro referenciado existe
 async function criarResenha({ livroId, usuarioId, nota, texto }) {
   if (nota < 0 || nota > 5) {
-    throw new Error('Nota deve estar entre 0 e 5');
+    const erro = new Error('Nota deve estar entre 0 e 5');
+    erro.isOperational = true;
+    throw erro;
   }
 
-  const [result] = await db.query(
-    `INSERT INTO resenhas (livro_id, usuario_id, nota, texto, criado_em)
-     VALUES (?, ?, ?, ?, NOW())`,
-    [livroId, usuarioId, nota, texto]
-  );
+  const livro = await livroModel.buscarPorId(livroId);
+  if (!livro) {
+    const erro = new Error('Livro não encontrado');
+    erro.isOperational = true;
+    throw erro;
+  }
 
-  return { id: result.insertId, livroId, usuarioId, nota, texto };
+  const novoId = await resenhaModel.criar({ livroId, usuarioId, nota, texto });
+  return { id: novoId, livroId, usuarioId, nota, texto };
 }
 
 // Lista todas as resenhas de um livro específico
 async function listarResenhasPorLivro(livroId) {
-  const [rows] = await db.query(
-    `SELECT r.*, u.nome AS usuario_nome
-     FROM resenhas r
-     JOIN usuarios u ON u.id = r.usuario_id
-     WHERE r.livro_id = ?
-     ORDER BY r.criado_em DESC`,
-    [livroId]
-  );
-  return rows;
+  return resenhaModel.buscarPorLivro(livroId);
 }
 
 // Lista todas as resenhas feitas por um usuário
 async function listarResenhasPorUsuario(usuarioId) {
-  const [rows] = await db.query(
-    `SELECT r.*, l.titulo AS livro_titulo
-     FROM resenhas r
-     JOIN livros l ON l.id = r.livro_id
-     WHERE r.usuario_id = ?
-     ORDER BY r.criado_em DESC`,
-    [usuarioId]
-  );
-  return rows;
+  return resenhaModel.buscarPorUsuario(usuarioId);
 }
 
-// Atualiza uma resenha existente (só o próprio autor deveria poder chamar isso)
+// Atualiza uma resenha existente
 async function atualizarResenha(resenhaId, { nota, texto }) {
-  await db.query(
-    `UPDATE resenhas SET nota = ?, texto = ? WHERE id = ?`,
-    [nota, texto, resenhaId]
-  );
+  if (nota !== undefined && (nota < 0 || nota > 5)) {
+    const erro = new Error('Nota deve estar entre 0 e 5');
+    erro.isOperational = true;
+    throw erro;
+  }
+
+  await resenhaModel.atualizar(resenhaId, { nota, texto });
   return { id: resenhaId, nota, texto };
 }
 
 // Remove uma resenha
 async function deletarResenha(resenhaId) {
-  await db.query('DELETE FROM resenhas WHERE id = ?', [resenhaId]);
+  await resenhaModel.deletar(resenhaId);
 }
 
 module.exports = {

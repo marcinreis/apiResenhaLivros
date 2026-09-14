@@ -1,5 +1,5 @@
 const axios = require('axios');
-const db = require('../config/database');
+const livroModel = require('../models/livroModel');
 
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes';
 
@@ -9,7 +9,6 @@ async function buscarLivrosExternos(termo) {
     params: { q: termo, maxResults: 10 },
   });
 
-  // Normaliza os dados retornados para o formato que nossa aplicação usa
   return (response.data.items || []).map((item) => {
     const info = item.volumeInfo;
     return {
@@ -23,39 +22,34 @@ async function buscarLivrosExternos(termo) {
   });
 }
 
-// Verifica se o livro já existe no banco local (pelo ISBN)
-async function buscarLivroLocalPorIsbn(isbn) {
-  const [rows] = await db.query('SELECT * FROM livros WHERE isbn = ?', [isbn]);
-  return rows[0] || null;
-}
-
-// Salva o livro localmente caso ainda não exista (cache)
+// Retorna o livro local se já existir (por ISBN), ou cria a partir dos dados externos
 async function salvarOuObterLivro(livroExterno) {
   if (!livroExterno.isbn) {
-    throw new Error('Livro sem ISBN não pode ser salvo');
+    const erro = new Error('Livro sem ISBN não pode ser salvo');
+    erro.isOperational = true;
+    throw erro;
   }
 
-  const existente = await buscarLivroLocalPorIsbn(livroExterno.isbn);
+  const existente = await livroModel.buscarPorIsbn(livroExterno.isbn);
   if (existente) return existente;
 
-  const [result] = await db.query(
-    `INSERT INTO livros (google_id, titulo, autores, isbn, capa_url, sinopse)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      livroExterno.googleId,
-      livroExterno.titulo,
-      livroExterno.autores,
-      livroExterno.isbn,
-      livroExterno.capaUrl,
-      livroExterno.sinopse,
-    ]
-  );
+  const novoId = await livroModel.criar(livroExterno);
+  return { id: novoId, ...livroExterno };
+}
 
-  return { id: result.insertId, ...livroExterno };
+// Busca um livro salvo localmente pelo id
+async function obterLivroPorId(id) {
+  const livro = await livroModel.buscarPorId(id);
+  if (!livro) {
+    const erro = new Error('Livro não encontrado');
+    erro.isOperational = true;
+    throw erro;
+  }
+  return livro;
 }
 
 module.exports = {
   buscarLivrosExternos,
-  buscarLivroLocalPorIsbn,
   salvarOuObterLivro,
+  obterLivroPorId,
 };
