@@ -4,35 +4,36 @@ CREATE DATABASE IF NOT EXISTS api_resenhas_livros
 
 USE api_resenhas_livros;
 
--- Tabela de resenhas
--- Livros não têm tabela própria: os dados vêm da API externa (Google Books ou Open Library)
--- e apenas um cache opcional é guardado aqui junto com a resenha
-CREATE TABLE resenhas (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-
-    -- Referência ao livro na API externa (não há tabela própria de livros)
-    livro_id_externo VARCHAR(100) NOT NULL,
-
-    -- Cache opcional dos dados do livro, para evitar chamadas repetidas à API externa
-    livro_titulo VARCHAR(255),
-    livro_autor VARCHAR(255),
-    livro_capa_url VARCHAR(500),
-
-    -- Conteúdo da resenha
-    texto TEXT NOT NULL,
-    nota TINYINT UNSIGNED NOT NULL,
-
-    -- Autor da resenha (sem autenticação por enquanto, apenas identificação livre)
-    autor_resenha VARCHAR(150),
-
-    -- Controle de datas
-    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                            ON UPDATE CURRENT_TIMESTAMP,
-
-    -- Regra de negócio: nota entre 1 e 5
-    CONSTRAINT chk_nota CHECK (nota BETWEEN 1 AND 5),
-
-    -- Índice para acelerar a busca de resenhas por livro
-    INDEX idx_livro_id_externo (livro_id_externo)
+CREATE TABLE usuarios (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(150) NOT NULL,
+  email VARCHAR(150) NOT NULL UNIQUE,
+  senha_hash VARCHAR(255) NOT NULL,
+  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE livros (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  google_id VARCHAR(100),
+  titulo VARCHAR(255) NOT NULL,
+  autores VARCHAR(255),
+  isbn VARCHAR(20) UNIQUE,
+  capa_url VARCHAR(500),
+  sinopse TEXT,
+  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE resenhas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  livro_id INT NOT NULL,
+  usuario_id INT NOT NULL,
+  nota DECIMAL(2,1) NOT NULL CHECK (nota >= 0 AND nota <= 5),
+  texto TEXT,
+  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (livro_id) REFERENCES livros(id) ON DELETE CASCADE,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+
+-- Índices auxiliares para consultas frequentes
+CREATE INDEX idx_resenhas_livro ON resenhas(livro_id);
+CREATE INDEX idx_resenhas_usuario ON resenhas(usuario_id);
