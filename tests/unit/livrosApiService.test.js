@@ -25,9 +25,25 @@ function erroHttp(status) {
   return erro;
 }
 
+// Roda a chamada avançando os timers falsos das esperas entre tentativas
+async function executarComTimers(promessa) {
+  const resultado = promessa.then(
+    (valor) => ({ valor }),
+    (erro) => ({ erro })
+  );
+  await jest.runAllTimersAsync();
+  return resultado;
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
+  mockGet.mockReset();
+  jest.useFakeTimers();
   delete process.env.GOOGLE_BOOKS_API_KEY;
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 describe('buscarLivrosExternos', () => {
@@ -81,16 +97,43 @@ describe('buscarLivrosExternos', () => {
     expect(mockGet).toHaveBeenCalledWith('', { params: { q: 'x', maxResults: 10, key: 'chave-teste' } });
   });
 
-  it('transforma falha da API externa em erro 502', async () => {
-    mockGet.mockRejectedValue(new Error('timeout'));
+  it('repete a chamada quando a Google Books falha temporariamente', async () => {
+    mockGet.mockRejectedValueOnce(erroHttp(503)).mockResolvedValueOnce({ data: { items: [VOLUME] } });
 
-    await expect(livrosApiService.buscarLivrosExternos('x')).rejects.toMatchObject({ status: 502 });
+    const { valor } = await executarComTimers(livrosApiService.buscarLivrosExternos('x'));
+
+    expect(valor).toHaveLength(1);
+    expect(mockGet).toHaveBeenCalledTimes(2);
   });
 
-  it('transforma cota esgotada (429) em erro 503', async () => {
+  it.each([
+    ['503 persistente', erroHttp(503)],
+    ['timeout', new Error('timeout')],
+  ])('lança 503 depois de 3 tentativas com %s', async (_, falha) => {
+    mockGet.mockRejectedValue(falha);
+
+    const { erro } = await executarComTimers(livrosApiService.buscarLivrosExternos('x'));
+
+    expect(erro).toMatchObject({ status: 503, message: expect.stringContaining('indisponível') });
+    expect(mockGet).toHaveBeenCalledTimes(3);
+  });
+
+  it('transforma cota esgotada (429) em erro 503, sem repetir', async () => {
     mockGet.mockRejectedValue(erroHttp(429));
 
-    await expect(livrosApiService.buscarLivrosExternos('x')).rejects.toMatchObject({ status: 503 });
+    const { erro } = await executarComTimers(livrosApiService.buscarLivrosExternos('x'));
+
+    expect(erro).toMatchObject({ status: 503, message: expect.stringContaining('Limite') });
+    expect(mockGet).toHaveBeenCalledTimes(1);
+  });
+
+  it('transforma erro do cliente (ex: 400) em 502, sem repetir', async () => {
+    mockGet.mockRejectedValue(erroHttp(400));
+
+    const { erro } = await executarComTimers(livrosApiService.buscarLivrosExternos('x'));
+
+    expect(erro).toMatchObject({ status: 502 });
+    expect(mockGet).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -104,21 +147,44 @@ describe('buscarLivroPorIdExterno', () => {
     expect(mockGet).toHaveBeenCalledWith('/abc123', { params: {} });
   });
 
-  it.each([404, 503])('lança 404 quando a Google Books responde %i', async (status) => {
-    mockGet.mockRejectedValue(erroHttp(status));
+  it('lança 404 quando a Google Books responde 404, sem repetir', async () => {
+    mockGet.mockRejectedValue(erroHttp(404));
 
-    await expect(livrosApiService.buscarLivroPorIdExterno('nao-existe')).rejects.toMatchObject({ status: 404 });
+    const { erro } = await executarComTimers(livrosApiService.buscarLivroPorIdExterno('nao-existe'));
+
+    expect(erro).toMatchObject({ status: 404 });
+    expect(mockGet).toHaveBeenCalledTimes(1);
+  });
+
+  it('repete a chamada e devolve o livro quando a falha é passageira', async () => {
+    mockGet.mockRejectedValueOnce(erroHttp(503)).mockResolvedValueOnce({ data: VOLUME });
+
+    const { valor } = await executarComTimers(livrosApiService.buscarLivroPorIdExterno('abc123'));
+
+    expect(valor).toMatchObject({ id: 'abc123' });
+    expect(mockGet).toHaveBeenCalledTimes(2);
+  });
+
+  it('lança 503 (e não 404) quando a Google Books continua indisponível', async () => {
+    mockGet.mockRejectedValue(erroHttp(503));
+
+    const { erro } = await executarComTimers(livrosApiService.buscarLivroPorIdExterno('abc123'));
+
+    expect(erro).toMatchObject({ status: 503 });
+    expect(mockGet).toHaveBeenCalledTimes(3);
   });
 
   it('lança 503 quando a cota está esgotada', async () => {
     mockGet.mockRejectedValue(erroHttp(429));
 
-    await expect(livrosApiService.buscarLivroPorIdExterno('abc123')).rejects.toMatchObject({ status: 503 });
+    const { erro } = await executarComTimers(livrosApiService.buscarLivroPorIdExterno('abc123'));
+    expect(erro).toMatchObject({ status: 503 });
   });
 
-  it('lança 502 em outras falhas', async () => {
-    mockGet.mockRejectedValue(new Error('timeout'));
+  it('lança 502 em outros erros da Google Books', async () => {
+    mockGet.mockRejectedValue(erroHttp(403));
 
-    await expect(livrosApiService.buscarLivroPorIdExterno('abc123')).rejects.toMatchObject({ status: 502 });
+    const { erro } = await executarComTimers(livrosApiService.buscarLivroPorIdExterno('abc123'));
+    expect(erro).toMatchObject({ status: 502 });
   });
 });

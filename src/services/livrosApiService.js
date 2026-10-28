@@ -27,10 +27,33 @@ function formatarLivro(item) {
   };
 }
 
+const TENTATIVAS_EXTRAS = 2;
+const ESPERA_ENTRE_TENTATIVAS_MS = 500;
+
+// Falhas passageiras: Google fora do ar (5xx) ou sem resposta (timeout/rede)
+function falhaTemporaria(erro) {
+  const status = erro.response?.status;
+  return status === undefined || status >= 500;
+}
+
+// Faz o GET repetindo a chamada em falhas passageiras
+async function getComRetentativa(url, config, tentativasRestantes = TENTATIVAS_EXTRAS) {
+  try {
+    return await googleBooks.get(url, config);
+  } catch (erro) {
+    if (tentativasRestantes === 0 || !falhaTemporaria(erro)) throw erro;
+    await new Promise((resolve) => setTimeout(resolve, ESPERA_ENTRE_TENTATIVAS_MS));
+    return getComRetentativa(url, config, tentativasRestantes - 1);
+  }
+}
+
 // Converte falhas da Google Books em erros da nossa API
 function traduzirErroApi(erro, mensagemPadrao) {
   if (erro.response?.status === 429) {
     return criarErro(503, 'Limite de requisições da API externa de livros atingido, tente mais tarde');
+  }
+  if (falhaTemporaria(erro)) {
+    return criarErro(503, 'API externa de livros indisponível no momento, tente novamente');
   }
   return criarErro(502, mensagemPadrao);
 }
@@ -38,7 +61,7 @@ function traduzirErroApi(erro, mensagemPadrao) {
 // Busca livros na API externa por título ou autor
 async function buscarLivrosExternos(termo) {
   try {
-    const response = await googleBooks.get('', {
+    const response = await getComRetentativa('', {
       params: { q: termo, maxResults: 10, ...parametrosPadrao() },
     });
     return (response.data.items || []).map(formatarLivro);
@@ -50,14 +73,12 @@ async function buscarLivrosExternos(termo) {
 // Busca os detalhes de um livro pelo ID da Google Books
 async function buscarLivroPorIdExterno(id) {
   try {
-    const response = await googleBooks.get(`/${encodeURIComponent(id)}`, {
+    const response = await getComRetentativa(`/${encodeURIComponent(id)}`, {
       params: parametrosPadrao(),
     });
     return formatarLivro(response.data);
   } catch (erro) {
-    // A Google Books responde 404 (ou 503) para IDs que não existem
-    const status = erro.response?.status;
-    if (status === 404 || status === 503) {
+    if (erro.response?.status === 404) {
       throw criarErro(404, 'Livro não encontrado');
     }
     throw traduzirErroApi(erro, 'Erro ao buscar livro na API externa');

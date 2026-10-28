@@ -45,7 +45,7 @@ Escolhida: **Google Books API** — https://developers.google.com/books
 - **API key:** não é obrigatória, mas sem ela todas as requisições anônimas dividem uma cota global que costuma se esgotar (erro 429). Com uma key própria o limite padrão é de 1.000 requisições por dia. Para criar: Google Cloud Console → crie um projeto → ative a "Books API" → Credenciais → Criar chave de API.
 - **Timeout:** 5 segundos por requisição.
 
-Quando a cota acaba, a API responde `503` com uma mensagem explicando. Outras falhas da Google Books viram `502`.
+A Google Books às vezes responde `503` por instabilidade passageira. Por isso, em erros 5xx ou timeout, a chamada é repetida até 2 vezes (com 500 ms de intervalo). Se continuar falhando, ou se a cota acabar (`429`), a API responde `503` com uma mensagem explicando. Outras falhas da Google Books viram `502`.
 
 ## Regras de negócio
 
@@ -162,7 +162,7 @@ Todos os erros seguem o formato `{ "erro": "mensagem" }`.
 | 404 | Livro, resenha ou rota não encontrados |
 | 409 | Usuário já cadastrado; usuário já resenhou este livro |
 | 502 | Falha na API externa de livros |
-| 503 | Cota da API externa de livros esgotada |
+| 503 | API externa de livros indisponível ou com a cota esgotada |
 | 500 | Erro interno (detalhes só no log do servidor) |
 
 Os controllers usam `try/catch` e repassam os erros com `next(erro)` para o middleware `errorHandler`, que decide o status.
