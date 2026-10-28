@@ -6,81 +6,181 @@ API REST para busca de livros (via API externa) e cadastro de resenhas próprias
 
 Permitir que usuários busquem livros e escrevam resenhas sobre eles, sem a necessidade de manter uma base própria de livros.
 
-## Stack 
+## Stack
 
-- A decidir
+- Node.js 18+ (testado no 24)
+- Express 5
+- MySQL (driver `mysql2`)
+- `axios` para chamar a API externa de livros
+- `bcryptjs` (hash de senha) e `jsonwebtoken` (autenticação JWT)
+- `dotenv` para variáveis de ambiente
+- Postman / Newman para os testes das rotas
+
+## Como rodar
+
+1. Instale as dependências: `npm install`
+2. Copie o `.env.example` para `.env` e preencha os valores (ver [Variáveis de ambiente](#variáveis-de-ambiente))
+3. Com o MySQL rodando, execute o `database.sql` (**ele apaga e recria as tabelas**)
+4. Suba o servidor: `npm start` (ou `npm run dev` para reiniciar a cada alteração)
+5. Com o servidor rodando, execute os testes: `npm test`
+
+## Variáveis de ambiente
+
+| Variável | Descrição |
+|----------|-----------|
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Conexão com o MySQL (`DB_NAME=api_resenhas_livros`) |
+| `PORT` | Porta da API (padrão 3000) |
+| `JWT_SECRET` | Chave secreta para assinar os tokens. Gere uma com `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"` |
+| `JWT_EXPIRES_IN` | Validade do token (padrão `1d`) |
+| `GOOGLE_BOOKS_API_KEY` | Opcional, mas recomendada (ver abaixo) |
 
 ## API externa de livros
 
-Usar uma API pública para buscar dados de livros, sem manter uma tabela própria de livros.
+Escolhida: **Google Books API** — https://developers.google.com/books
 
-Opções:
-- **Google Books API** — https://developers.google.com/books
-- **Open Library API** — https://openlibrary.org/developers/api
+- **Busca por título/autor:** `GET https://www.googleapis.com/books/v1/volumes?q={termo}&maxResults=10`
+- **Detalhes de um livro:** `GET https://www.googleapis.com/books/v1/volumes/{id}`
+- **Campos aproveitados:** `id`, `volumeInfo.title`, `volumeInfo.authors`, `volumeInfo.imageLinks.thumbnail`, `volumeInfo.description` e `volumeInfo.industryIdentifiers` (ISBN-13, ou ISBN-10 se não houver o 13)
+- **API key:** não é obrigatória, mas sem ela todas as requisições anônimas dividem uma cota global que costuma se esgotar (erro 429). Com uma key própria o limite padrão é de 1.000 requisições por dia. Para criar: Google Cloud Console → crie um projeto → ative a "Books API" → Credenciais → Criar chave de API.
+- **Timeout:** 5 segundos por requisição.
 
-Definir qual será usada e documentar:
-- Endpoint de busca por título/autor
-- Campos retornados que serão aproveitados (id, título, autor, capa, sinopse, ISBN)
-- Se há necessidade de API key
-- Rate limits
+Quando a cota acaba, a API responde `503` com uma mensagem explicando. Outras falhas da Google Books viram `502`.
 
-## Escopo do CRUD
+## Regras de negócio
 
-### Livros (somente leitura, via API externa — sem tabela própria)
-- [ ] Buscar livros por título/autor (proxy para a API externa)
-- [ ] Buscar detalhes de um livro específico pelo ID externo
+- A nota é um número **inteiro de 0 a 5** (estrelas).
+- A **média das notas** de um livro é um número decimal (ex: `3.5`), com até 2 casas, devolvida em `GET /livros/:id/resenhas`.
+- O texto da resenha tem entre 10 e 2000 caracteres.
+- Cada usuário pode ter **apenas uma resenha por livro** (outros usuários podem resenhar o mesmo livro).
+- Criar, editar e excluir resenhas exige **autenticação** (usuário e senha → token JWT).
+- Só o autor pode editar ou excluir a própria resenha.
+- Usuário: de 3 a 50 caracteres (letras, números, `_` ou `.`). Senha: no mínimo 6 caracteres, guardada com hash bcrypt.
 
-### Resenhas (CRUD completo, no banco próprio)
-- [ ] Criar resenha vinculada a um livro (armazenar o ID externo do livro)
-- [ ] Listar resenhas de um livro específico
-- [ ] Listar todas as resenhas
-- [ ] Buscar uma resenha específica pelo ID
-- [ ] Editar uma resenha
-- [ ] Excluir uma resenha
+## Modelagem do banco
 
-## Modelagem do banco (a definir)
+Não existe tabela de livros. Ao criar uma resenha, a API busca o livro na Google Books para confirmar que ele existe e guarda título, autor e capa **em cache** na própria resenha, para que as listagens não dependam da API externa. Os detalhes completos (`GET /livros/:id`) são sempre buscados em tempo real.
+
+### Tabela `usuarios`
+- id (PK)
+- usuario (único)
+- senha_hash
+- criado_em
 
 ### Tabela `resenhas`
 - id (PK)
-- livro_id_externo (ID do livro na API externa)
-- livro_titulo (cache opcional, para não depender da API externa em toda listagem)
-- livro_autor (cache opcional)
-- livro_capa_url (cache opcional)
+- usuario_id (FK → usuarios)
+- livro_id_externo (ID do livro na Google Books)
+- livro_titulo, livro_autor, livro_capa_url (cache)
+- nota (0 a 5)
 - texto
-- nota
-- autor_resenha (se houver autenticação)
 - criado_em
 - atualizado_em
+- Único: (`usuario_id`, `livro_id_externo`)
 
-> Definir se haverá cache de dados do livro (campos acima) ou se a busca de detalhes será sempre em tempo real via API externa.
+## Rotas
 
-## Rotas planejadas
+Todas as rotas têm o prefixo `/api`. Rotas com 🔒 exigem o header `Authorization: Bearer <token>`.
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
+| POST | /auth/registrar | Cadastra um usuário |
+| POST | /auth/login | Faz login e devolve o token |
 | GET | /livros?busca= | Busca livros na API externa |
 | GET | /livros/:id | Detalhes de um livro (via API externa) |
-| GET | /livros/:id/resenhas | Lista resenhas de um livro |
-| POST | /livros/:id/resenhas | Cria uma resenha para um livro |
+| GET | /livros/:id/resenhas | Lista resenhas de um livro, com a média das notas |
+| POST | /livros/:id/resenhas 🔒 | Cria uma resenha para um livro |
 | GET | /resenhas | Lista todas as resenhas |
 | GET | /resenhas/:id | Detalhes de uma resenha |
-| PUT | /resenhas/:id | Edita uma resenha |
-| DELETE | /resenhas/:id | Exclui uma resenha |
+| PUT | /resenhas/:id 🔒 | Edita uma resenha (só o autor) |
+| DELETE | /resenhas/:id 🔒 | Exclui uma resenha (só o autor) |
 
-## Regras de negócio a definir
+### Exemplos
 
-- [ ] Nota mínima e máxima (ex: 1 a 5)
-- [ ] Tamanho mínimo/máximo do texto da resenha
-- [ ] Autenticação necessária para criar/editar/excluir resenha?
-- [ ] Um usuário pode ter mais de uma resenha para o mesmo livro?
+**Registrar** — `POST /api/auth/registrar`
+```json
+{ "usuario": "maria", "senha": "senha123" }
+```
+Resposta `201`: `{ "id": 1, "usuario": "maria" }`
 
-## Próximos passos
+**Login** — `POST /api/auth/login` (mesmo corpo)
+Resposta `200`:
+```json
+{ "token": "eyJhbGciOi...", "usuario": { "id": 1, "usuario": "maria" } }
+```
 
-1. Escolher e testar a API externa de livros (Google Books ou Open Library)
-2. Modelar e criar a tabela de resenhas no banco
-3. Implementar as rotas de busca de livros (proxy)
-4. Implementar o CRUD de resenhas
-5. Adicionar validação de entrada
-6. (Opcional) Adicionar autenticação
-7. Testar todas as rotas (Postman/Insomnia)
-8. Documentar endpoints
+**Buscar livros** — `GET /api/livros?busca=dom casmurro`
+```json
+[
+  {
+    "id": "aBcD1234",
+    "titulo": "Dom Casmurro",
+    "autores": "Machado de Assis",
+    "isbn": "9788525406958",
+    "capaUrl": "http://books.google.com/...",
+    "sinopse": "..."
+  }
+]
+```
+
+**Criar resenha** — `POST /api/livros/aBcD1234/resenhas` 🔒
+```json
+{ "nota": 4, "texto": "Um livro muito bom de ler." }
+```
+Resposta `201`:
+```json
+{
+  "id": 10,
+  "livro": { "id": "aBcD1234", "titulo": "Dom Casmurro", "autores": "Machado de Assis", "capaUrl": "http://..." },
+  "usuario": { "id": 1, "usuario": "maria" },
+  "nota": 4,
+  "texto": "Um livro muito bom de ler.",
+  "criadoEm": "2026-10-28T12:00:00.000Z",
+  "atualizadoEm": "2026-10-28T12:00:00.000Z"
+}
+```
+
+**Resenhas de um livro** — `GET /api/livros/aBcD1234/resenhas`
+```json
+{ "livroId": "aBcD1234", "mediaNotas": 3.5, "totalResenhas": 2, "resenhas": [ ... ] }
+```
+Sem resenhas, `mediaNotas` vem `null` e `totalResenhas` vem `0`.
+
+**Editar resenha** — `PUT /api/resenhas/10` 🔒 (mesmo corpo da criação; nota e texto são obrigatórios)
+
+**Excluir resenha** — `DELETE /api/resenhas/10` 🔒 → `204` sem corpo
+
+### Erros
+
+Todos os erros seguem o formato `{ "erro": "mensagem" }`.
+
+| Status | Quando |
+|--------|--------|
+| 400 | Dados inválidos (nota, texto, usuário, senha, JSON malformado, busca vazia) |
+| 401 | Token ausente, inválido ou expirado; usuário ou senha incorretos |
+| 403 | Tentativa de editar/excluir resenha de outro usuário |
+| 404 | Livro, resenha ou rota não encontrados |
+| 409 | Usuário já cadastrado; usuário já resenhou este livro |
+| 502 | Falha na API externa de livros |
+| 503 | Cota da API externa de livros esgotada |
+| 500 | Erro interno (detalhes só no log do servidor) |
+
+Os controllers usam `try/catch` e repassam os erros com `next(erro)` para o middleware `errorHandler`, que decide o status.
+
+## Testes
+
+A coleção `postman/apiResenhaLivros.postman_collection.json` cobre todas as rotas, com testes automáticos (casos de sucesso e de erro). Ela cria usuários com nomes únicos a cada execução e apaga as resenhas que criou.
+
+- **No Postman:** Import → selecione o arquivo → abra a coleção → Run (execute em ordem).
+- **No terminal:** com o servidor rodando, `npm test` (usa o Newman via `npx`).
+
+## Status
+
+- [x] Escolher a API externa de livros (Google Books)
+- [x] Modelar e criar as tabelas
+- [x] Rotas de busca de livros (proxy)
+- [x] CRUD de resenhas
+- [x] Validação de entrada
+- [x] Autenticação
+- [x] Coleção de testes do Postman
+- [x] Documentação dos endpoints
+- [ ] Executar a coleção completa com MySQL e API key configurados

@@ -1,55 +1,70 @@
 const resenhasService = require('../services/resenhasService');
 
-// POST /resenhas
-async function criar(req, res) {
+// POST /livros/:id/resenhas
+async function criar(req, res, next) {
   try {
-    const { livroId, usuarioId, nota, texto } = req.body;
-    const resenha = await resenhasService.criarResenha({ livroId, usuarioId, nota, texto });
+    const { nota, texto } = req.body;
+    const resenha = await resenhasService.criarResenha({
+      livroIdExterno: req.params.id,
+      usuarioId: req.usuario.id,
+      nota,
+      texto,
+    });
     res.status(201).json(resenha);
   } catch (erro) {
-    res.status(400).json({ erro: erro.message });
+    next(erro);
   }
 }
 
-// GET /livros/:livroId/resenhas
-async function listarPorLivro(req, res) {
+// GET /resenhas
+async function listar(req, res, next) {
   try {
-    const resenhas = await resenhasService.listarResenhasPorLivro(req.params.livroId);
+    const resenhas = await resenhasService.listarResenhas();
     res.json(resenhas);
   } catch (erro) {
-    res.status(500).json({ erro: 'Erro ao listar resenhas do livro' });
+    next(erro);
   }
 }
 
-// GET /usuarios/:usuarioId/resenhas
-async function listarPorUsuario(req, res) {
+// GET /resenhas/:id
+async function detalhar(req, res, next) {
   try {
-    const resenhas = await resenhasService.listarResenhasPorUsuario(req.params.usuarioId);
-    res.json(resenhas);
+    const resenha = await resenhasService.obterResenha(req.params.id);
+    res.json(resenha);
   } catch (erro) {
-    res.status(500).json({ erro: 'Erro ao listar resenhas do usuário' });
+    next(erro);
+  }
+}
+
+// GET /livros/:id/resenhas
+async function listarPorLivro(req, res, next) {
+  try {
+    const resultado = await resenhasService.listarResenhasPorLivro(req.params.id);
+    res.json(resultado);
+  } catch (erro) {
+    next(erro);
   }
 }
 
 // PUT /resenhas/:id
-async function atualizar(req, res) {
+async function atualizar(req, res, next) {
   try {
     const { nota, texto } = req.body;
-    const resenha = await resenhasService.atualizarResenha(req.params.id, { nota, texto });
+    const resenha = await resenhasService.atualizarResenha(req.params.id, req.usuario.id, { nota, texto });
     res.json(resenha);
   } catch (erro) {
-    res.status(400).json({ erro: erro.message });
+    next(erro);
   }
 }
 
 // DELETE /resenhas/:id
-async function deletar(req, res) {
+async function deletar(req, res, next) {
   try {
-    await resenhasService.deletarResenha(req.params.id);
+    await resenhasService.deletarResenha(req.params.id, req.usuario.id);
     res.status(204).send();
   } catch (erro) {
-    res.status(500).json({ erro: 'Erro ao deletar resenha' });
+    next(erro);
   }
 }
 
-module.exports = { criar, listarPorLivro, listarPorUsuario, atualizar, deletar };
+module.exports = { criar, listar, detalhar, listarPorLivro, atualizar, deletar };

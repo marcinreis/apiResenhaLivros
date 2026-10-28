@@ -1,30 +1,30 @@
 const livrosApiService = require('../services/livrosApiService');
 
-// GET /livros/buscar?termo=...
-// Busca livros na API externa (não salva ainda)
-async function buscar(req, res) {
+// GET /livros?busca=...
+// Busca livros na API externa por título ou autor
+async function buscar(req, res, next) {
   try {
-    const { termo } = req.query;
-    if (!termo) {
-      return res.status(400).json({ erro: 'Parâmetro "termo" é obrigatório' });
+    const { busca } = req.query;
+    if (!busca || !busca.trim()) {
+      return res.status(400).json({ erro: 'Parâmetro "busca" é obrigatório' });
     }
 
-    const livros = await livrosApiService.buscarLivrosExternos(termo);
+    const livros = await livrosApiService.buscarLivrosExternos(busca.trim());
     res.json(livros);
   } catch (erro) {
-    res.status(500).json({ erro: 'Erro ao buscar livros na API externa' });
+    next(erro);
   }
 }
 
-// POST /livros
-// Salva (ou retorna existente) um livro escolhido pelo usuário
-async function salvar(req, res) {
+// GET /livros/:id
+// Detalhes de um livro pelo ID da API externa
+async function detalhar(req, res, next) {
   try {
-    const livro = await livrosApiService.salvarOuObterLivro(req.body);
-    res.status(201).json(livro);
+    const livro = await livrosApiService.buscarLivroPorIdExterno(req.params.id);
+    res.json(livro);
   } catch (erro) {
-    res.status(400).json({ erro: erro.message });
+    next(erro);
   }
 }
 
-module.exports = { buscar, salvar };
+module.exports = { buscar, detalhar };

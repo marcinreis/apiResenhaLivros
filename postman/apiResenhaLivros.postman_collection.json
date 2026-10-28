@@ -1,0 +1,1088 @@
+{
+  "info": {
+    "name": "API Resenhas de Livros",
+    "description": "Testes de todas as rotas. Execute em ordem (Runner do Postman ou `npm test`). Requer o servidor rodando e o MySQL com o database.sql aplicado.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "livroId",
+      "value": ""
+    },
+    {
+      "key": "usuario1",
+      "value": ""
+    },
+    {
+      "key": "usuario2",
+      "value": ""
+    },
+    {
+      "key": "senha",
+      "value": "senha123"
+    },
+    {
+      "key": "token1",
+      "value": ""
+    },
+    {
+      "key": "token2",
+      "value": ""
+    },
+    {
+      "key": "resenhaId",
+      "value": ""
+    },
+    {
+      "key": "resenhaId2",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Geral",
+      "item": [
+        {
+          "name": "Health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/"
+          }
+        },
+        {
+          "name": "Rota inexistente -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/nao-existe"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Livros",
+      "item": [
+        {
+          "name": "Buscar sem termo -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/livros"
+          }
+        },
+        {
+          "name": "Buscar livros",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const livros = pm.response.json();",
+                  "pm.test('Retorna lista com livros', () => { pm.expect(livros).to.be.an('array').that.is.not.empty; });",
+                  "pm.test('Livro tem os campos esperados', () => pm.expect(livros[0]).to.include.keys('id', 'titulo', 'autores', 'isbn', 'capaUrl', 'sinopse'));",
+                  "pm.collectionVariables.set('livroId', livros[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/livros?busca=dom casmurro"
+          }
+        },
+        {
+          "name": "Detalhes do livro",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ID confere', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('livroId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/livros/{{livroId}}"
+          }
+        },
+        {
+          "name": "Livro inexistente -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/livros/idQueNaoExiste000"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Autenticação",
+      "item": [
+        {
+          "name": "Registrar usuário 1",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const sufixo = Date.now();",
+                  "pm.collectionVariables.set('usuario1', 'teste1_' + sufixo);",
+                  "pm.collectionVariables.set('usuario2', 'teste2_' + sufixo);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Não devolve a senha', () => pm.expect(pm.response.json()).to.not.have.any.keys('senha', 'senha_hash'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usuario\": \"{{usuario1}}\",\n  \"senha\": \"{{senha}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/registrar"
+          }
+        },
+        {
+          "name": "Registrar usuário duplicado -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usuario\": \"{{usuario1}}\",\n  \"senha\": \"{{senha}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/registrar"
+          }
+        },
+        {
+          "name": "Registrar com senha curta -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usuario\": \"qualquer_nome\",\n  \"senha\": \"123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/registrar"
+          }
+        },
+        {
+          "name": "Registrar usuário 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usuario\": \"{{usuario2}}\",\n  \"senha\": \"{{senha}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/registrar"
+          }
+        },
+        {
+          "name": "Login com senha errada -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usuario\": \"{{usuario1}}\",\n  \"senha\": \"senhaErrada\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Login usuário 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Retorna token', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('token1', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usuario\": \"{{usuario1}}\",\n  \"senha\": \"{{senha}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Login usuário 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('token2', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usuario\": \"{{usuario2}}\",\n  \"senha\": \"{{senha}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Resenhas",
+      "item": [
+        {
+          "name": "Criar sem token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 4,\n  \"texto\": \"Um livro muito bom de ler.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/livros/{{livroId}}/resenhas"
+          }
+        },
+        {
+          "name": "Criar com token inválido -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{livroId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 4,\n  \"texto\": \"Um livro muito bom de ler.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/livros/{{livroId}}/resenhas"
+          }
+        },
+        {
+          "name": "Criar com nota 6 -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token1}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 6,\n  \"texto\": \"Um livro muito bom de ler.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/livros/{{livroId}}/resenhas"
+          }
+        },
+        {
+          "name": "Criar com nota decimal -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token1}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 4.5,\n  \"texto\": \"Um livro muito bom de ler.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/livros/{{livroId}}/resenhas"
+          }
+        },
+        {
+          "name": "Criar com texto curto -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token1}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 4,\n  \"texto\": \"curto\"\n}"
+            },
+            "url": "{{baseUrl}}/api/livros/{{livroId}}/resenhas"
+          }
+        },
+        {
+          "name": "Criar em livro inexistente -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token1}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 4,\n  \"texto\": \"Um livro muito bom de ler.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/livros/idQueNaoExiste000/resenhas"
+          }
+        },
+        {
+          "name": "Criar resenha (usuário 1, nota 4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.test('Dados do livro em cache', () => { pm.expect(r.livro.id).to.eql(pm.collectionVariables.get('livroId')); pm.expect(r.livro.titulo).to.be.a('string'); });",
+                  "pm.test('Autor é o usuário 1', () => pm.expect(r.usuario.usuario).to.eql(pm.collectionVariables.get('usuario1')));",
+                  "pm.collectionVariables.set('resenhaId', r.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token1}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 4,\n  \"texto\": \"Um livro muito bom de ler.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/livros/{{livroId}}/resenhas"
+          }
+        },
+        {
+          "name": "Criar segunda resenha no mesmo livro -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token1}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 2,\n  \"texto\": \"Tentando resenhar de novo.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/livros/{{livroId}}/resenhas"
+          }
+        },
+        {
+          "name": "Criar resenha (usuário 2, nota 3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('resenhaId2', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token2}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 3,\n  \"texto\": \"Gostei, mas achei o meio lento.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/livros/{{livroId}}/resenhas"
+          }
+        },
+        {
+          "name": "Listar resenhas do livro (média 3.5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('Total de 2 resenhas', () => pm.expect(r.totalResenhas).to.eql(2));",
+                  "pm.test('Média decimal 3.5', () => pm.expect(r.mediaNotas).to.eql(3.5));",
+                  "pm.test('Lista com 2 itens', () => pm.expect(r.resenhas).to.have.lengthOf(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/livros/{{livroId}}/resenhas"
+          }
+        },
+        {
+          "name": "Listar resenhas de livro sem resenhas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Média nula e total 0', () => { pm.expect(pm.response.json().mediaNotas).to.be.null; pm.expect(pm.response.json().totalResenhas).to.eql(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/livros/livroSemResenhas/resenhas"
+          }
+        },
+        {
+          "name": "Listar todas as resenhas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Contém a resenha criada', () => pm.expect(pm.response.json().map(r => r.id)).to.include(Number(pm.collectionVariables.get('resenhaId'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/resenhas"
+          }
+        },
+        {
+          "name": "Detalhes da resenha",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Nota 4', () => pm.expect(pm.response.json().nota).to.eql(4));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/resenhas/{{resenhaId}}"
+          }
+        },
+        {
+          "name": "Resenha inexistente -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/resenhas/999999999"
+          }
+        },
+        {
+          "name": "Resenha com ID inválido -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/resenhas/abc"
+          }
+        },
+        {
+          "name": "Editar resenha de outro usuário -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token2}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 0,\n  \"texto\": \"Tentando editar a resenha alheia.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/resenhas/{{resenhaId}}"
+          }
+        },
+        {
+          "name": "Editar sem token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 5,\n  \"texto\": \"Mudei de ideia, é excelente!\"\n}"
+            },
+            "url": "{{baseUrl}}/api/resenhas/{{resenhaId}}"
+          }
+        },
+        {
+          "name": "Editar resenha inexistente -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token1}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 5,\n  \"texto\": \"Mudei de ideia, é excelente!\"\n}"
+            },
+            "url": "{{baseUrl}}/api/resenhas/999999999"
+          }
+        },
+        {
+          "name": "Editar resenha (nota 5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Nota atualizada', () => pm.expect(pm.response.json().nota).to.eql(5));",
+                  "pm.test('Texto atualizado', () => pm.expect(pm.response.json().texto).to.eql('Mudei de ideia, é excelente!'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token1}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 5,\n  \"texto\": \"Mudei de ideia, é excelente!\"\n}"
+            },
+            "url": "{{baseUrl}}/api/resenhas/{{resenhaId}}"
+          }
+        },
+        {
+          "name": "Média após edição (4)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Média 4', () => pm.expect(pm.response.json().mediaNotas).to.eql(4));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/livros/{{livroId}}/resenhas"
+          }
+        },
+        {
+          "name": "Excluir resenha de outro usuário -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('Retorna mensagem de erro', () => pm.expect(pm.response.json().erro).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token2}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/resenhas/{{resenhaId}}"
+          }
+        },
+        {
+          "name": "Excluir resenha (usuário 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token1}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/resenhas/{{resenhaId}}"
+          }
+        },
+        {
+          "name": "Resenha excluída -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/resenhas/{{resenhaId}}"
+          }
+        },
+        {
+          "name": "Excluir de novo -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token1}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/resenhas/{{resenhaId}}"
+          }
+        },
+        {
+          "name": "Excluir resenha (usuário 2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token2}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/resenhas/{{resenhaId2}}"
+          }
+        }
+      ]
+    }
+  ]
+}

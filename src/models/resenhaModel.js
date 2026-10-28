@@ -1,36 +1,54 @@
 const db = require('../config/database');
 
-async function criar({ livroId, usuarioId, nota, texto }) {
+// Traz junto o nome do autor da resenha
+const SELECT_RESENHA = `
+  SELECT r.*, u.usuario AS usuario_nome
+  FROM resenhas r
+  JOIN usuarios u ON u.id = r.usuario_id`;
+
+async function criar({ usuarioId, livroIdExterno, livroTitulo, livroAutor, livroCapaUrl, nota, texto }) {
   const [result] = await db.query(
-    `INSERT INTO resenhas (livro_id, usuario_id, nota, texto, criado_em)
-     VALUES (?, ?, ?, ?, NOW())`,
-    [livroId, usuarioId, nota, texto]
+    `INSERT INTO resenhas
+       (usuario_id, livro_id_externo, livro_titulo, livro_autor, livro_capa_url, nota, texto)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [usuarioId, livroIdExterno, livroTitulo, livroAutor, livroCapaUrl, nota, texto]
   );
   return result.insertId;
 }
 
-async function buscarPorLivro(livroId) {
+async function buscarTodas() {
+  const [rows] = await db.query(`${SELECT_RESENHA} ORDER BY r.criado_em DESC, r.id DESC`);
+  return rows;
+}
+
+async function buscarPorId(id) {
+  const [rows] = await db.query(`${SELECT_RESENHA} WHERE r.id = ?`, [id]);
+  return rows[0] || null;
+}
+
+async function buscarPorLivro(livroIdExterno) {
   const [rows] = await db.query(
-    `SELECT r.*, u.nome AS usuario_nome
-     FROM resenhas r
-     JOIN usuarios u ON u.id = r.usuario_id
-     WHERE r.livro_id = ?
-     ORDER BY r.criado_em DESC`,
-    [livroId]
+    `${SELECT_RESENHA} WHERE r.livro_id_externo = ? ORDER BY r.criado_em DESC, r.id DESC`,
+    [livroIdExterno]
   );
   return rows;
 }
 
-async function buscarPorUsuario(usuarioId) {
+async function buscarPorUsuarioELivro(usuarioId, livroIdExterno) {
   const [rows] = await db.query(
-    `SELECT r.*, l.titulo AS livro_titulo
-     FROM resenhas r
-     JOIN livros l ON l.id = r.livro_id
-     WHERE r.usuario_id = ?
-     ORDER BY r.criado_em DESC`,
-    [usuarioId]
+    'SELECT id FROM resenhas WHERE usuario_id = ? AND livro_id_externo = ?',
+    [usuarioId, livroIdExterno]
   );
-  return rows;
+  return rows[0] || null;
+}
+
+// Média (decimal) e quantidade de notas de um livro
+async function calcularMediaPorLivro(livroIdExterno) {
+  const [rows] = await db.query(
+    'SELECT AVG(nota) AS media, COUNT(*) AS total FROM resenhas WHERE livro_id_externo = ?',
+    [livroIdExterno]
+  );
+  return rows[0];
 }
 
 async function atualizar(id, { nota, texto }) {
@@ -43,8 +61,11 @@ async function deletar(id) {
 
 module.exports = {
   criar,
+  buscarTodas,
+  buscarPorId,
   buscarPorLivro,
-  buscarPorUsuario,
+  buscarPorUsuarioELivro,
+  calcularMediaPorLivro,
   atualizar,
   deletar,
 };
