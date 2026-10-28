@@ -14,6 +14,7 @@ Permitir que usuários busquem livros e escrevam resenhas sobre eles, sem a nece
 - `axios` para chamar a API externa de livros
 - `bcryptjs` (hash de senha) e `jsonwebtoken` (autenticação JWT)
 - `dotenv` para variáveis de ambiente
+- Jest, Supertest e `mysql-memory-server` para os testes automatizados
 - Postman / Newman para os testes das rotas
 
 ## Como rodar
@@ -22,7 +23,7 @@ Permitir que usuários busquem livros e escrevam resenhas sobre eles, sem a nece
 2. Copie o `.env.example` para `.env` e preencha os valores (ver [Variáveis de ambiente](#variáveis-de-ambiente))
 3. Com o MySQL rodando, execute o `database.sql` (**ele apaga e recria as tabelas**)
 4. Suba o servidor: `npm start` (ou `npm run dev` para reiniciar a cada alteração)
-5. Com o servidor rodando, execute os testes: `npm test`
+5. Rode os testes: `npm test` (ver [Testes](#testes))
 
 ## Variáveis de ambiente
 
@@ -168,10 +169,15 @@ Os controllers usam `try/catch` e repassam os erros com `next(erro)` para o midd
 
 ## Testes
 
-A coleção `postman/apiResenhaLivros.postman_collection.json` cobre todas as rotas, com testes automáticos (casos de sucesso e de erro). Ela cria usuários com nomes únicos a cada execução e apaga as resenhas que criou.
+| Comando | O que roda | Precisa de |
+|---------|------------|------------|
+| `npm test` | Testes unitários (services) e de integração (rotas via supertest, com banco e Google Books mockados) | Nada |
+| `npm run test:e2e` | Fluxo completo contra um MySQL real e temporário (`mysql-memory-server`), com a Google Books simulada | Nada (baixa o MySQL na primeira execução) |
+| `npm run test:postman` | Coleção do Postman via Newman, contra o servidor rodando | Servidor no ar, MySQL e `.env` configurados |
 
-- **No Postman:** Import → selecione o arquivo → abra a coleção → Run (execute em ordem).
-- **No terminal:** com o servidor rodando, `npm test` (usa o Newman via `npx`).
+A coleção `postman/apiResenhaLivros.postman_collection.json` cobre todas as rotas, com testes automáticos (casos de sucesso e de erro). Ela cria usuários com nomes únicos a cada execução e apaga as resenhas que criou. No Postman: Import → selecione o arquivo → abra a coleção → Run (execute em ordem).
+
+Para testar manualmente com `curl`, veja [docs/teste-manual-com-mysql.md](docs/teste-manual-com-mysql.md) e [docs/teste-manual-sem-mysql.md](docs/teste-manual-sem-mysql.md).
 
 ## Status
 
@@ -181,6 +187,7 @@ A coleção `postman/apiResenhaLivros.postman_collection.json` cobre todas as ro
 - [x] CRUD de resenhas
 - [x] Validação de entrada
 - [x] Autenticação
+- [x] Testes automatizados (unitários, integração e e2e com MySQL real)
 - [x] Coleção de testes do Postman
 - [x] Documentação dos endpoints
-- [ ] Executar a coleção completa com MySQL e API key configurados
+- [ ] Executar a coleção do Postman com MySQL e API key configurados
